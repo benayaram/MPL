@@ -3,7 +3,7 @@ import { dbStore } from '@/lib/db/store';
 import { checkAdminAuth } from '@/lib/auth/jwt';
 
 export async function GET() {
-  const events = dbStore.getEvents();
+  const events = await dbStore.getEvents();
   return NextResponse.json(events);
 }
 
@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Event name is required' }, { status: 400 });
     }
 
-    const event = dbStore.createEvent(name.trim(), description?.trim());
+    const event = await dbStore.createEvent(name.trim(), description?.trim());
     return NextResponse.json(event, { status: 201 });
   } catch (error) {
     console.error('Error creating gallery event:', error);

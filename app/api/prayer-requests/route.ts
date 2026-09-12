@@ -7,9 +7,8 @@ export async function GET(req: NextRequest) {
   const auth = await checkAdminAuth(req);
   const includePrivate = Boolean(auth);
   
-  const requests = dbStore.getPrayerRequests(includePrivate);
+  const requests = await dbStore.getPrayerRequests(includePrivate);
   
-  // Extra security check: Ensure no private requests leak to non-admins even if getPrayerRequests has bug
   if (!includePrivate) {
     const sanitized = requests
       .filter(r => !r.isPrivate)
@@ -32,7 +31,6 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { name, contact, category, message, isPrivate, honeypot } = body;
 
-    // Honeypot spam check - if honeypot field is filled, silently ignore or reject
     if (honeypot && honeypot.trim().length > 0) {
       console.warn('Spam detected via honeypot field');
       return NextResponse.json({ success: true, message: 'Prayer request submitted successfully' });
@@ -42,7 +40,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Name, Category, and Message are required fields' }, { status: 400 });
     }
 
-    const created = dbStore.createPrayerRequest({
+    const created = await dbStore.createPrayerRequest({
       name: name.trim(),
       contact: (contact || 'Not provided').trim(),
       category,
@@ -50,8 +48,7 @@ export async function POST(req: NextRequest) {
       isPrivate: Boolean(isPrivate)
     });
 
-    // Send admin email notification asynchronously
-    const settings = dbStore.getSettings();
+    const settings = await dbStore.getSettings();
     const adminEmail = settings.notificationEmail || 'ministriesmpl7@gmail.com';
     sendPrayerRequestNotification(created, adminEmail).catch(err => {
       console.error('Background notification error:', err);
@@ -81,7 +78,7 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: 'Valid id and status (new, prayed, archived) required' }, { status: 400 });
     }
 
-    const updated = dbStore.updatePrayerRequestStatus(id, status);
+    const updated = await dbStore.updatePrayerRequestStatus(id, status);
     if (!updated) {
       return NextResponse.json({ error: 'Prayer request not found' }, { status: 404 });
     }
@@ -106,7 +103,7 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: 'Prayer request id parameter required' }, { status: 400 });
   }
 
-  const deleted = dbStore.deletePrayerRequest(id);
+  const deleted = await dbStore.deletePrayerRequest(id);
   if (!deleted) {
     return NextResponse.json({ error: 'Prayer request not found' }, { status: 404 });
   }

@@ -8,8 +8,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const settings = dbStore.getSettings();
-  const admin = dbStore.getAdmin();
+  const settings = await dbStore.getSettings();
+  const admin = await dbStore.getAdmin();
 
   return NextResponse.json({
     ...settings,
@@ -27,7 +27,7 @@ export async function PUT(req: NextRequest) {
     const { youtubeChannelId, notificationEmail, newPassword, newUsername } = await req.json();
 
     if (youtubeChannelId !== undefined || notificationEmail !== undefined) {
-      dbStore.updateSettings({
+      await dbStore.updateSettings({
         ...(youtubeChannelId !== undefined && { youtubeChannelId: youtubeChannelId.trim() }),
         ...(notificationEmail !== undefined && { notificationEmail: notificationEmail.trim() })
       });
@@ -35,14 +35,14 @@ export async function PUT(req: NextRequest) {
 
     if (newPassword && newPassword.trim().length >= 6) {
       const hashed = await hashPassword(newPassword.trim());
-      dbStore.updateAdminPassword(hashed, newUsername?.trim());
+      await dbStore.updateAdminPassword(hashed, newUsername?.trim());
     } else if (newUsername && newUsername.trim().length > 0) {
-      const admin = dbStore.getAdmin();
-      dbStore.updateAdminPassword(admin.passwordHash, newUsername.trim());
+      const admin = await dbStore.getAdmin();
+      await dbStore.updateAdminPassword(admin.passwordHash, newUsername.trim());
     }
 
-    const updatedSettings = dbStore.getSettings();
-    const updatedAdmin = dbStore.getAdmin();
+    const updatedSettings = await dbStore.getSettings();
+    const updatedAdmin = await dbStore.getAdmin();
 
     return NextResponse.json({
       success: true,

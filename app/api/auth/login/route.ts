@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Username and password are required' }, { status: 400 });
     }
 
-    const admin = dbStore.getAdmin();
+    const admin = await dbStore.getAdmin();
 
     if (username.toLowerCase() !== admin.username.toLowerCase()) {
       return NextResponse.json({ error: 'Invalid username or password' }, { status: 401 });

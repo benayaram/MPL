@@ -1,10 +1,11 @@
 import { Mail, Phone, MapPin, Clock, Instagram, Youtube, Sparkles, Send } from 'lucide-react';
 import { dbStore } from '@/lib/db/store';
 
-export const revalidate = 60;
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export default async function ContactPage() {
-  const contact = dbStore.getContact();
+  const contact = await dbStore.getContact();
 
   return (
     <div className="py-12 md:py-16 space-y-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

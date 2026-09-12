@@ -3,10 +3,11 @@ import Link from 'next/link';
 import { Flame, Heart, BookOpen, Users, Sparkles, ArrowRight, HeartHandshake } from 'lucide-react';
 import { dbStore } from '@/lib/db/store';
 
-export const revalidate = 60;
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export default async function AboutPage() {
-  const about = dbStore.getAbout();
+  const about = await dbStore.getAbout();
 
   return (
     <div className="py-12 md:py-16 space-y-16">

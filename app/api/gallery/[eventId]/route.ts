@@ -8,7 +8,7 @@ interface Context {
 
 export async function GET(req: NextRequest, context: Context) {
   const { eventId } = await context.params;
-  const event = dbStore.getEventById(eventId);
+  const event = await dbStore.getEventById(eventId);
   if (!event) {
     return NextResponse.json({ error: 'Event not found' }, { status: 404 });
   }
@@ -30,7 +30,7 @@ export async function POST(req: NextRequest, context: Context) {
       return NextResponse.json({ error: 'Image URL is required' }, { status: 400 });
     }
 
-    const updatedEvent = dbStore.addImageToEvent(eventId, url, caption, publicId);
+    const updatedEvent = await dbStore.addImageToEvent(eventId, url, caption, publicId);
     if (!updatedEvent) {
       return NextResponse.json({ error: 'Event not found' }, { status: 404 });
     }
@@ -54,13 +54,13 @@ export async function DELETE(req: NextRequest, context: Context) {
   const imageId = searchParams.get('imageId');
 
   if (imageId) {
-    const updated = dbStore.deleteImageFromEvent(eventId, imageId);
+    const updated = await dbStore.deleteImageFromEvent(eventId, imageId);
     if (!updated) {
       return NextResponse.json({ error: 'Event or image not found' }, { status: 404 });
     }
     return NextResponse.json(updated);
   } else {
-    const deleted = dbStore.deleteEvent(eventId);
+    const deleted = await dbStore.deleteEvent(eventId);
     if (!deleted) {
       return NextResponse.json({ error: 'Event not found' }, { status: 404 });
     }

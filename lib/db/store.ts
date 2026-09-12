@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import bcrypt from 'bcryptjs';
+import { getMongoDb } from './mongodb';
 import {
   AdminUser,
   GalleryEvent,
@@ -33,9 +34,9 @@ const defaultAbout: AboutPageData = {
 
 const defaultContact: ContactInfoData = {
   serviceTimes: [
-    { day: 'Friday', time: '12:00 PM - 1:00 PM', title: 'Friday Fasting & Prayer Fellowship', description: 'Weekly prayer & testimony fellowship' },
-    { day: 'Sunday', time: '6:30 PM - 8:00 PM', title: 'Youth Worship & Word Online', description: 'Live online worship & message' },
-    { day: 'Wednesday', time: '8:00 PM - 9:00 PM', title: 'Mid-Week Bible Study', description: 'Interactive Word study' }
+    { day: 'Every Day Night', time: '10:00 PM - 11:00 PM', title: 'Daily Worship', description: 'Night prayer & worship' },
+    { day: 'Every Morning', time: '05:00 AM - 6:00 AM', title: 'Daily Worship', description: 'Morning worship' },
+    { day: 'Every first friday', time: '10:00 PM - 04:00 PM', title: 'Whole Night Prayer', description: 'All night fasting & prayer' }
   ],
   address: 'MPL Ministries Global Youth Fellowship',
   phone: '+91 98765 43210',
@@ -118,7 +119,7 @@ const FILE_PATH = path.join(DATA_DIR, 'mpl_store.json');
 
 function ensureDataFile(): StoreData {
   if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
+    try { fs.mkdirSync(DATA_DIR, { recursive: true }); } catch {}
   }
 
   if (!fs.existsSync(FILE_PATH)) {
@@ -138,7 +139,7 @@ function ensureDataFile(): StoreData {
       prayerRequests: defaultPrayerRequests
     };
 
-    fs.writeFileSync(FILE_PATH, JSON.stringify(initialStore, null, 2), 'utf-8');
+    try { fs.writeFileSync(FILE_PATH, JSON.stringify(initialStore, null, 2), 'utf-8'); } catch {}
     return initialStore;
   }
 
@@ -160,24 +161,55 @@ function ensureDataFile(): StoreData {
       events: defaultEvents,
       prayerRequests: defaultPrayerRequests
     };
-    fs.writeFileSync(FILE_PATH, JSON.stringify(store, null, 2), 'utf-8');
+    try { fs.writeFileSync(FILE_PATH, JSON.stringify(store, null, 2), 'utf-8'); } catch {}
     return store;
   }
 }
 
 function saveStore(data: StoreData) {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+    fs.writeFileSync(FILE_PATH, JSON.stringify(data, null, 2), 'utf-8');
+  } catch (err) {
+    console.warn('Local store save warning (ephemeral serverless environment):', err);
   }
-  fs.writeFileSync(FILE_PATH, JSON.stringify(data, null, 2), 'utf-8');
 }
 
 export const dbStore = {
-  getAdmin(): AdminUser {
+  async getAdmin(): Promise<AdminUser> {
+    const db = await getMongoDb();
+    if (db) {
+      const doc = await db.collection('admin').findOne({ _id: 'admin_user' as any });
+      if (doc) return doc.data as AdminUser;
+      const initialAdmin: AdminUser = {
+        id: 'admin-1',
+        username: process.env.ADMIN_INITIAL_USERNAME || 'admin',
+        passwordHash: bcrypt.hashSync(process.env.ADMIN_INITIAL_PASSWORD || 'admin123', 10),
+        updatedAt: new Date().toISOString()
+      };
+      await db.collection('admin').insertOne({ _id: 'admin_user' as any, data: initialAdmin });
+      return initialAdmin;
+    }
     const store = ensureDataFile();
     return store.admin;
   },
-  updateAdminPassword(newPasswordHash: string, newUsername?: string): AdminUser {
+
+  async updateAdminPassword(newPasswordHash: string, newUsername?: string): Promise<AdminUser> {
+    const db = await getMongoDb();
+    if (db) {
+      const admin = await this.getAdmin();
+      admin.passwordHash = newPasswordHash;
+      if (newUsername) admin.username = newUsername;
+      admin.updatedAt = new Date().toISOString();
+      await db.collection('admin').updateOne(
+        { _id: 'admin_user' as any },
+        { $set: { data: admin } },
+        { upsert: true }
+      );
+      return admin;
+    }
     const store = ensureDataFile();
     store.admin.passwordHash = newPasswordHash;
     if (newUsername) store.admin.username = newUsername;
@@ -185,46 +217,124 @@ export const dbStore = {
     saveStore(store);
     return store.admin;
   },
-  getAbout(): AboutPageData {
+
+  async getAbout(): Promise<AboutPageData> {
+    const db = await getMongoDb();
+    if (db) {
+      const doc = await db.collection('about').findOne({ _id: 'about_page' as any });
+      if (doc) return doc.data as AboutPageData;
+      await db.collection('about').insertOne({ _id: 'about_page' as any, data: defaultAbout });
+      return defaultAbout;
+    }
     const store = ensureDataFile();
     return store.about || defaultAbout;
   },
-  updateAbout(data: Partial<AboutPageData>): AboutPageData {
+
+  async updateAbout(data: Partial<AboutPageData>): Promise<AboutPageData> {
+    const db = await getMongoDb();
+    if (db) {
+      const current = await this.getAbout();
+      const updated = { ...current, ...data, updatedAt: new Date().toISOString() };
+      await db.collection('about').updateOne(
+        { _id: 'about_page' as any },
+        { $set: { data: updated } },
+        { upsert: true }
+      );
+      return updated;
+    }
     const store = ensureDataFile();
     store.about = { ...store.about, ...data, updatedAt: new Date().toISOString() };
     saveStore(store);
     return store.about;
   },
-  getContact(): ContactInfoData {
+
+  async getContact(): Promise<ContactInfoData> {
+    const db = await getMongoDb();
+    if (db) {
+      const doc = await db.collection('contact').findOne({ _id: 'contact_page' as any });
+      if (doc) return doc.data as ContactInfoData;
+      await db.collection('contact').insertOne({ _id: 'contact_page' as any, data: defaultContact });
+      return defaultContact;
+    }
     const store = ensureDataFile();
     return store.contact || defaultContact;
   },
-  updateContact(data: Partial<ContactInfoData>): ContactInfoData {
+
+  async updateContact(data: Partial<ContactInfoData>): Promise<ContactInfoData> {
+    const db = await getMongoDb();
+    if (db) {
+      const current = await this.getContact();
+      const updated = { ...current, ...data, updatedAt: new Date().toISOString() };
+      await db.collection('contact').updateOne(
+        { _id: 'contact_page' as any },
+        { $set: { data: updated } },
+        { upsert: true }
+      );
+      return updated;
+    }
     const store = ensureDataFile();
     store.contact = { ...store.contact, ...data, updatedAt: new Date().toISOString() };
     saveStore(store);
     return store.contact;
   },
-  getSettings(): SiteSettings {
+
+  async getSettings(): Promise<SiteSettings> {
+    const db = await getMongoDb();
+    if (db) {
+      const doc = await db.collection('settings').findOne({ _id: 'site_settings' as any });
+      if (doc) return doc.data as SiteSettings;
+      await db.collection('settings').insertOne({ _id: 'site_settings' as any, data: defaultSettings });
+      return defaultSettings;
+    }
     const store = ensureDataFile();
     return store.settings || defaultSettings;
   },
-  updateSettings(data: Partial<SiteSettings>): SiteSettings {
+
+  async updateSettings(data: Partial<SiteSettings>): Promise<SiteSettings> {
+    const db = await getMongoDb();
+    if (db) {
+      const current = await this.getSettings();
+      const updated = { ...current, ...data, updatedAt: new Date().toISOString() };
+      await db.collection('settings').updateOne(
+        { _id: 'site_settings' as any },
+        { $set: { data: updated } },
+        { upsert: true }
+      );
+      return updated;
+    }
     const store = ensureDataFile();
     store.settings = { ...store.settings, ...data, updatedAt: new Date().toISOString() };
     saveStore(store);
     return store.settings;
   },
-  getEvents(): GalleryEvent[] {
+
+  async getEvents(): Promise<GalleryEvent[]> {
+    const db = await getMongoDb();
+    if (db) {
+      const docs = await db.collection('events').find().sort({ createdAt: -1 }).toArray();
+      if (docs.length > 0) return docs.map(d => d.data as GalleryEvent);
+      // Seed default events into mongodb if empty
+      for (const evt of defaultEvents) {
+        await db.collection('events').insertOne({ _id: evt.id as any, data: evt, createdAt: evt.createdAt });
+      }
+      return defaultEvents;
+    }
     const store = ensureDataFile();
     return store.events || [];
   },
-  getEventById(id: string): GalleryEvent | undefined {
+
+  async getEventById(id: string): Promise<GalleryEvent | undefined> {
+    const db = await getMongoDb();
+    if (db) {
+      const doc = await db.collection('events').findOne({ _id: id as any });
+      if (doc) return doc.data as GalleryEvent;
+      return undefined;
+    }
     const store = ensureDataFile();
     return (store.events || []).find(e => e.id === id);
   },
-  createEvent(name: string, description?: string): GalleryEvent {
-    const store = ensureDataFile();
+
+  async createEvent(name: string, description?: string): Promise<GalleryEvent> {
     const newEvt: GalleryEvent = {
       id: 'evt-' + Date.now(),
       name,
@@ -232,21 +342,34 @@ export const dbStore = {
       createdAt: new Date().toISOString(),
       images: []
     };
+    const db = await getMongoDb();
+    if (db) {
+      await db.collection('events').insertOne({ _id: newEvt.id as any, data: newEvt, createdAt: newEvt.createdAt });
+      return newEvt;
+    }
+    const store = ensureDataFile();
     store.events = [newEvt, ...(store.events || [])];
     saveStore(store);
     return newEvt;
   },
-  deleteEvent(id: string): boolean {
+
+  async deleteEvent(id: string): Promise<boolean> {
+    const db = await getMongoDb();
+    if (db) {
+      const res = await db.collection('events').deleteOne({ _id: id as any });
+      return res.deletedCount > 0;
+    }
     const store = ensureDataFile();
     const lenBefore = (store.events || []).length;
     store.events = (store.events || []).filter(e => e.id !== id);
     saveStore(store);
     return store.events.length < lenBefore;
   },
-  addImageToEvent(eventId: string, url: string, caption?: string, publicId?: string): GalleryEvent | undefined {
-    const store = ensureDataFile();
-    const event = (store.events || []).find(e => e.id === eventId);
+
+  async addImageToEvent(eventId: string, url: string, caption?: string, publicId?: string): Promise<GalleryEvent | undefined> {
+    const event = await this.getEventById(eventId);
     if (!event) return undefined;
+
     const newImage = {
       id: 'img-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
       url,
@@ -256,17 +379,28 @@ export const dbStore = {
       createdAt: new Date().toISOString()
     };
     event.images.push(newImage);
-    saveStore(store);
+
+    const db = await getMongoDb();
+    if (db) {
+      await db.collection('events').updateOne({ _id: eventId as any }, { $set: { data: event } });
+      return event;
+    }
+    const store = ensureDataFile();
+    const storeEvt = (store.events || []).find(e => e.id === eventId);
+    if (storeEvt) {
+      storeEvt.images = event.images;
+      saveStore(store);
+    }
     return event;
   },
-  reorderEventImages(eventId: string, imageIds: string[]): GalleryEvent | undefined {
-    const store = ensureDataFile();
-    const event = (store.events || []).find(e => e.id === eventId);
+
+  async reorderEventImages(eventId: string, imageIds: string[]): Promise<GalleryEvent | undefined> {
+    const event = await this.getEventById(eventId);
     if (!event) return undefined;
-    
+
     const imageMap = new Map(event.images.map(img => [img.id, img]));
     const reordered: typeof event.images = [];
-    
+
     imageIds.forEach((id, index) => {
       const img = imageMap.get(id);
       if (img) {
@@ -276,44 +410,91 @@ export const dbStore = {
       }
     });
 
-    // append any missing images
     imageMap.forEach((img) => {
       img.order = reordered.length;
       reordered.push(img);
     });
 
     event.images = reordered;
-    saveStore(store);
+
+    const db = await getMongoDb();
+    if (db) {
+      await db.collection('events').updateOne({ _id: eventId as any }, { $set: { data: event } });
+      return event;
+    }
+    const store = ensureDataFile();
+    const storeEvt = (store.events || []).find(e => e.id === eventId);
+    if (storeEvt) {
+      storeEvt.images = event.images;
+      saveStore(store);
+    }
     return event;
   },
-  deleteImageFromEvent(eventId: string, imageId: string): GalleryEvent | undefined {
-    const store = ensureDataFile();
-    const event = (store.events || []).find(e => e.id === eventId);
+
+  async deleteImageFromEvent(eventId: string, imageId: string): Promise<GalleryEvent | undefined> {
+    const event = await this.getEventById(eventId);
     if (!event) return undefined;
+
     event.images = event.images.filter(img => img.id !== imageId);
     event.images.forEach((img, index) => { img.order = index; });
-    saveStore(store);
+
+    const db = await getMongoDb();
+    if (db) {
+      await db.collection('events').updateOne({ _id: eventId as any }, { $set: { data: event } });
+      return event;
+    }
+    const store = ensureDataFile();
+    const storeEvt = (store.events || []).find(e => e.id === eventId);
+    if (storeEvt) {
+      storeEvt.images = event.images;
+      saveStore(store);
+    }
     return event;
   },
-  getPrayerRequests(includePrivate = false): PrayerRequest[] {
+
+  async getPrayerRequests(includePrivate = false): Promise<PrayerRequest[]> {
+    const db = await getMongoDb();
+    if (db) {
+      const query = includePrivate ? {} : { 'data.isPrivate': false };
+      const docs = await db.collection('prayer_requests').find(query).sort({ createdAt: -1 }).toArray();
+      if (docs.length > 0) return docs.map(d => d.data as PrayerRequest);
+      if (!includePrivate) return defaultPrayerRequests.filter(p => !p.isPrivate);
+      return defaultPrayerRequests;
+    }
     const store = ensureDataFile();
     const list = store.prayerRequests || [];
     if (includePrivate) return list;
     return list.filter(pr => !pr.isPrivate);
   },
-  createPrayerRequest(data: Omit<PrayerRequest, 'id' | 'createdAt' | 'status'>): PrayerRequest {
-    const store = ensureDataFile();
+
+  async createPrayerRequest(data: Omit<PrayerRequest, 'id' | 'createdAt' | 'status'>): Promise<PrayerRequest> {
     const newPr: PrayerRequest = {
       id: 'pr-' + Date.now(),
       ...data,
       status: 'new',
       createdAt: new Date().toISOString()
     };
+    const db = await getMongoDb();
+    if (db) {
+      await db.collection('prayer_requests').insertOne({ _id: newPr.id as any, data: newPr, createdAt: newPr.createdAt });
+      return newPr;
+    }
+    const store = ensureDataFile();
     store.prayerRequests = [newPr, ...(store.prayerRequests || [])];
     saveStore(store);
     return newPr;
   },
-  updatePrayerRequestStatus(id: string, status: 'new' | 'prayed' | 'archived'): PrayerRequest | undefined {
+
+  async updatePrayerRequestStatus(id: string, status: 'new' | 'prayed' | 'archived'): Promise<PrayerRequest | undefined> {
+    const db = await getMongoDb();
+    if (db) {
+      const doc = await db.collection('prayer_requests').findOne({ _id: id as any });
+      if (!doc) return undefined;
+      const pr = doc.data as PrayerRequest;
+      pr.status = status;
+      await db.collection('prayer_requests').updateOne({ _id: id as any }, { $set: { data: pr } });
+      return pr;
+    }
     const store = ensureDataFile();
     const pr = (store.prayerRequests || []).find(p => p.id === id);
     if (!pr) return undefined;
@@ -321,18 +502,40 @@ export const dbStore = {
     saveStore(store);
     return pr;
   },
-  deletePrayerRequest(id: string): boolean {
+
+  async deletePrayerRequest(id: string): Promise<boolean> {
+    const db = await getMongoDb();
+    if (db) {
+      const res = await db.collection('prayer_requests').deleteOne({ _id: id as any });
+      return res.deletedCount > 0;
+    }
     const store = ensureDataFile();
     const lenBefore = (store.prayerRequests || []).length;
     store.prayerRequests = (store.prayerRequests || []).filter(p => p.id !== id);
     saveStore(store);
     return store.prayerRequests.length < lenBefore;
   },
-  getLiveStatusCache(): LiveStatusCache | undefined {
+
+  async getLiveStatusCache(): Promise<LiveStatusCache | undefined> {
+    const db = await getMongoDb();
+    if (db) {
+      const doc = await db.collection('live_cache').findOne({ _id: 'live_status' as any });
+      if (doc) return doc.data as LiveStatusCache;
+    }
     const store = ensureDataFile();
     return store.liveCache;
   },
-  setLiveStatusCache(cache: LiveStatusCache): void {
+
+  async setLiveStatusCache(cache: LiveStatusCache): Promise<void> {
+    const db = await getMongoDb();
+    if (db) {
+      await db.collection('live_cache').updateOne(
+        { _id: 'live_status' as any },
+        { $set: { data: cache } },
+        { upsert: true }
+      );
+      return;
+    }
     const store = ensureDataFile();
     store.liveCache = cache;
     saveStore(store);

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import AdminLayout from '@/components/AdminLayout';
-import { Plus, Trash2, ArrowUp, ArrowDown, Upload, Image as ImageIcon, CheckCircle2 } from 'lucide-react';
+import { Plus, Trash2, ArrowUp, ArrowDown, Upload, Image as ImageIcon, CheckCircle2, FileImage } from 'lucide-react';
 import { GalleryEvent } from '@/lib/models/schema';
 
 export default function AdminGalleryPage() {
@@ -35,7 +35,7 @@ export default function AdminGalleryPage() {
       }
     } catch (err) {
       console.error('Error loading gallery events:', err);
-    } finally {
+    } fontically {
       setLoading(false);
     }
   };
@@ -71,6 +71,24 @@ export default function AdminGalleryPage() {
     }
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Please select an image file under 5MB.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      if (event.target?.result) {
+        setImageUrl(event.target.result as string);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleAddImage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedEventId || !imageUrl.trim()) return;
@@ -86,7 +104,7 @@ export default function AdminGalleryPage() {
       if (res.ok) {
         setImageUrl('');
         setImageCaption('');
-        setMessage('Image added successfully!');
+        setMessage('Photo uploaded to gallery album!');
         await loadEvents();
       }
     } catch (err) {
@@ -134,7 +152,6 @@ export default function AdminGalleryPage() {
 
     if (targetIndex < 0 || targetIndex >= newImages.length) return;
 
-    // Swap
     const temp = newImages[index];
     newImages[index] = newImages[targetIndex];
     newImages[targetIndex] = temp;
@@ -165,7 +182,7 @@ export default function AdminGalleryPage() {
         {/* Header */}
         <div className="pb-6 border-b border-navy-200">
           <h1 className="font-display text-3xl font-extrabold text-navy-900">Gallery Manager</h1>
-          <p className="text-xs text-navy-600 mt-1">Create photo albums, upload photos, and reorder images within events.</p>
+          <p className="text-xs text-navy-600 mt-1">Create photo albums, upload photos directly from your device, and reorder images within events.</p>
         </div>
 
         {message && (
@@ -278,19 +295,32 @@ export default function AdminGalleryPage() {
                     </span>
                   </div>
 
-                  <form onSubmit={handleAddImage} className="space-y-3">
+                  <form onSubmit={handleAddImage} className="space-y-4">
                     <h3 className="text-xs font-bold text-navy-900 flex items-center">
-                      <Upload className="w-3.5 h-3.5 mr-1 text-mpl-600" /> Add Photo to this Album
+                      <Upload className="w-3.5 h-3.5 mr-1 text-mpl-600" /> Upload or Add Photo to this Album
                     </h3>
+
+                    {/* Direct File Picker Option */}
+                    <div className="p-4 rounded-xl border border-dashed border-mpl-300 bg-mpl-50/50 space-y-2 text-center">
+                      <FileImage className="w-6 h-6 text-mpl-600 mx-auto" />
+                      <p className="text-xs font-bold text-navy-900">Upload Image File directly from Computer/Phone</p>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleFileChange}
+                        className="text-xs text-navy-700 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-mpl-500 file:text-white hover:file:bg-mpl-600 cursor-pointer"
+                      />
+                    </div>
+
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-[11px] font-semibold text-navy-700 mb-1">Photo Image URL *</label>
+                        <label className="block text-[11px] font-semibold text-navy-700 mb-1">Image URL / Selected Image *</label>
                         <input
-                          type="url"
+                          type="text"
                           required
                           value={imageUrl}
                           onChange={(e) => setImageUrl(e.target.value)}
-                          placeholder="https://images.unsplash.com/..."
+                          placeholder="Image URL or upload file above"
                           className="w-full px-3 py-2 rounded-xl border border-navy-200 text-xs focus:ring-2 focus:ring-mpl-500 outline-none"
                         />
                       </div>
@@ -300,17 +330,24 @@ export default function AdminGalleryPage() {
                           type="text"
                           value={imageCaption}
                           onChange={(e) => setImageCaption(e.target.value)}
-                          placeholder="e.g. Fellowship Prayer Time"
+                          placeholder="e.g. Worship & Fellowship Time"
                           className="w-full px-3 py-2 rounded-xl border border-navy-200 text-xs focus:ring-2 focus:ring-mpl-500 outline-none"
                         />
                       </div>
                     </div>
+
+                    {imageUrl && (
+                      <div className="relative w-24 h-24 rounded-xl overflow-hidden border border-navy-200">
+                        <Image src={imageUrl} alt="Preview" fill className="object-cover" />
+                      </div>
+                    )}
+
                     <button
                       type="submit"
-                      disabled={addingImage}
-                      className="px-5 py-2 rounded-xl font-bold text-xs text-white bg-navy-900 hover:bg-navy-800 transition-colors"
+                      disabled={addingImage || !imageUrl}
+                      className="px-5 py-2 rounded-xl font-bold text-xs text-white bg-navy-900 hover:bg-navy-800 transition-colors disabled:opacity-50"
                     >
-                      {addingImage ? 'Adding Photo...' : 'Upload / Add Photo'}
+                      {addingImage ? 'Uploading Photo...' : 'Add Photo to Album'}
                     </button>
                   </form>
                 </div>

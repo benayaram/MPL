@@ -4,11 +4,12 @@ import { Heart, Flame, Users, Calendar, ArrowRight, HeartHandshake, ShieldCheck,
 import LiveStreamEmbed from '@/components/LiveStreamEmbed';
 import { dbStore } from '@/lib/db/store';
 
-export const revalidate = 60; // Refresh page data every 60s
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export default async function HomePage() {
-  const about = dbStore.getAbout();
-  const events = dbStore.getEvents().slice(0, 3);
+  const about = await dbStore.getAbout();
+  const events = (await dbStore.getEvents()).slice(0, 3);
 
   return (
     <div className="space-y-16 md:space-y-24 pb-16">

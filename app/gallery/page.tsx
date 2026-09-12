@@ -3,10 +3,11 @@ import Link from 'next/link';
 import { Calendar, Image as ImageIcon, Sparkles, ArrowRight } from 'lucide-react';
 import { dbStore } from '@/lib/db/store';
 
-export const revalidate = 60;
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export default async function GalleryPage() {
-  const events = dbStore.getEvents();
+  const events = await dbStore.getEvents();
 
   return (
     <div className="py-12 md:py-16 space-y-12">

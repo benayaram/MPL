@@ -3,7 +3,7 @@ import { dbStore } from '@/lib/db/store';
 import { checkAdminAuth } from '@/lib/auth/jwt';
 
 export async function GET() {
-  const data = dbStore.getAbout();
+  const data = await dbStore.getAbout();
   return NextResponse.json(data);
 }
 
@@ -15,7 +15,7 @@ export async function PUT(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const updated = dbStore.updateAbout(body);
+    const updated = await dbStore.updateAbout(body);
     return NextResponse.json(updated);
   } catch (error) {
     console.error('Error updating about content:', error);
