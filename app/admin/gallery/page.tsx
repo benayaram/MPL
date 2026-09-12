@@ -35,7 +35,7 @@ export default function AdminGalleryPage() {
       }
     } catch (err) {
       console.error('Error loading gallery events:', err);
-    } fontically {
+    } finally {
       setLoading(false);
     }
   };
